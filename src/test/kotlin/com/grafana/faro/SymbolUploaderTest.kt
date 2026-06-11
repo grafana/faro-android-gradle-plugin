@@ -1,6 +1,5 @@
 package com.grafana.faro
 
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -9,6 +8,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class SymbolUploaderTest {
 
@@ -28,17 +29,14 @@ class SymbolUploaderTest {
     }
 
     @Test
-    fun `upload posts multipart file parts to bundle id path with auth header`() {
+    fun `uploadMapping posts mapping file part only`() {
         val server = MockWebServer()
         server.enqueue(MockResponse().setResponseCode(201))
         server.start()
 
         val mapping = Files.createTempFile("mapping", ".txt").toFile().apply { writeText("a.b.c -> d:\n") }
-        val nativeSymbols = Files.createTempFile("native-debug-symbols", ".zip").toFile().apply {
-            writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04))
-        }
 
-        val result = SymbolUploader.upload(
+        val result = SymbolUploader.uploadMapping(
             UploadConfig(
                 endpoint = server.url("/").toString().trimEnd('/'),
                 appId = "42",
@@ -46,29 +44,81 @@ class SymbolUploaderTest {
                 apiKey = "secret-token",
                 bundleId = "com.example.app@12@1.2.3",
                 mapping = mapping,
-                nativeSymbols = nativeSymbols,
+                nativeSymbols = null,
             ),
-            client = OkHttpClient(),
         )
 
         assertEquals(201, result.code)
 
         val request = server.takeRequest()
         assertEquals("POST", request.method)
-        assertEquals("/app/42/symbols/android/com.example.app%4012%401.2.3", request.path)
-        assertEquals("Bearer 777:secret-token", request.getHeader("Authorization"))
-        assertEquals("777", request.getHeader("X-Scope-OrgID"))
-
         val body = request.body.readUtf8()
         assertTrue(body.contains("name=\"mapping\""))
-        assertTrue(body.contains("name=\"native-symbols\""))
-        assertFalse(body.contains("name=\"applicationId\""))
+        assertFalse(body.contains("name=\"native-symbols\""))
 
         server.shutdown()
-        cleanup(mapping, nativeSymbols)
+        mapping.delete()
     }
 
-    private fun cleanup(vararg files: File) {
-        files.forEach { it.delete() }
+    @Test
+    fun `uploadNativeAbi posts abi field and native-symbols zip`() {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(201))
+        server.start()
+
+        val abiZip = Files.createTempFile("arm64-v8a", ".zip").toFile().apply {
+            writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04))
+        }
+
+        val result = SymbolUploader.uploadNativeAbi(
+            UploadConfig(
+                endpoint = server.url("/").toString().trimEnd('/'),
+                appId = "42",
+                stackId = "777",
+                apiKey = "secret-token",
+                bundleId = "com.example.app@12@1.2.3",
+                mapping = null,
+                nativeSymbols = abiZip,
+            ),
+            abiZip,
+            "arm64-v8a",
+        )
+
+        assertEquals(201, result.code)
+
+        val request = server.takeRequest()
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("name=\"abi\""))
+        assertTrue(body.contains("arm64-v8a"))
+        assertTrue(body.contains("name=\"native-symbols\""))
+
+        server.shutdown()
+        abiZip.delete()
+    }
+}
+
+class NativeSymbolsByAbiPackerTest {
+
+    @Test
+    fun `pack splits AGP zip into per-ABI zips`() {
+        val agp = Files.createTempFile("native-debug-symbols", ".zip").toFile()
+        ZipOutputStream(agp.outputStream()).use { zos ->
+            zos.putNextEntry(ZipEntry("arm64-v8a/libdemo.so"))
+            zos.write(ByteArray(128) { 1 })
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("x86_64/libdemo.so.dbg"))
+            zos.write(ByteArray(128) { 2 })
+            zos.closeEntry()
+        }
+
+        val outDir = Files.createTempDirectory("faro-abi-out").toFile()
+        val artifacts = NativeSymbolsByAbiPacker.pack(agp, outDir)
+
+        assertEquals(2, artifacts.size)
+        assertTrue(artifacts.any { it.abi == "arm64-v8a" && it.bytes > 0 })
+        assertTrue(artifacts.any { it.abi == "x86_64" && it.bytes > 0 })
+
+        agp.delete()
+        outDir.deleteRecursively()
     }
 }

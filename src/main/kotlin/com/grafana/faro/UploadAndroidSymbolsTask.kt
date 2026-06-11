@@ -9,13 +9,10 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 /**
- * Uploads the R8 `mapping.txt` and/or `native-debug-symbols.zip` for one release variant.
- *
- * No task outputs are declared, so it always runs after the build it is wired to (uploads
- * are not cacheable). File inputs are [Internal] and existence-checked at execution time so a
- * variant that produced only one (or neither) artifact does not fail the build.
+ * Uploads the R8 `mapping.txt` and/or per-ABI native symbol zips for one release variant.
  */
 @DisableCachingByDefault(because = "Uploads symbol artifacts to Grafana over the network.")
 abstract class UploadAndroidSymbolsTask : DefaultTask() {
@@ -73,7 +70,6 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
             if (apiKey.orNull.isNullOrBlank()) add("apiKey")
         }
         if (missing.isNotEmpty()) {
-            // Don't fail the build for a missing key (e.g. local/contributor builds) — warn and skip.
             FaroLog.warn(logger, "skipping symbol upload; missing config: ${missing.joinToString(", ")}")
             return
         }
@@ -90,24 +86,53 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
             versionCode.get(),
             versionName.get(),
         )
-        val artifacts = listOfNotNull(mapping?.let { "mapping" }, nativeSymbols?.let { "native-symbols" })
-        FaroLog.lifecycle(logger, project, "uploading Android symbols ($artifacts) for $identity")
 
-        val result = SymbolUploader.upload(
-            UploadConfig(
-                endpoint = endpoint.get(),
-                appId = appId.get(),
-                stackId = stackId.get(),
-                apiKey = apiKey.get(),
-                bundleId = identity,
-                mapping = mapping,
-                nativeSymbols = nativeSymbols,
-            ),
+        val baseConfig = UploadConfig(
+            endpoint = endpoint.get(),
+            appId = appId.get(),
+            stackId = stackId.get(),
+            apiKey = apiKey.get(),
+            bundleId = identity,
+            mapping = null,
+            nativeSymbols = null,
         )
 
-        if (result.code !in 200..299) {
-            throw GradleException("${FaroLog.PREFIX}symbol upload failed (HTTP ${result.code}): ${result.body}")
+        if (mapping != null) {
+            FaroLog.lifecycle(logger, project, "uploading mapping (${mapping.length()} bytes) for $identity")
+            val result = SymbolUploader.uploadMapping(baseConfig.copy(mapping = mapping))
+            if (result.code !in 200..299) {
+                throw GradleException("${FaroLog.PREFIX}mapping upload failed (HTTP ${result.code}): ${result.body}")
+            }
+            FaroLog.lifecycle(logger, project, "uploaded mapping (${mapping.length()} bytes, HTTP ${result.code})")
         }
-        FaroLog.lifecycle(logger, project, "symbol upload complete (HTTP ${result.code}).")
+
+        if (nativeSymbols != null) {
+            val tempDir = File(project.buildDir, "faro-native-abi-zips").apply {
+                deleteRecursively()
+                mkdirs()
+            }
+            val abiArtifacts = NativeSymbolsByAbiPacker.pack(nativeSymbols, tempDir)
+            for (artifact in abiArtifacts) {
+                FaroLog.lifecycle(
+                    logger,
+                    project,
+                    "uploading native-symbols (${artifact.abi}, ${artifact.bytes} bytes)",
+                )
+                val result = SymbolUploader.uploadNativeAbi(baseConfig, artifact.zipFile, artifact.abi)
+                if (result.code !in 200..299) {
+                    throw GradleException(
+                        "${FaroLog.PREFIX}native-symbols upload failed for ${artifact.abi} " +
+                            "(HTTP ${result.code}): ${result.body}",
+                    )
+                }
+                FaroLog.lifecycle(
+                    logger,
+                    project,
+                    "uploaded native-symbols (${artifact.abi}, ${artifact.bytes} bytes, HTTP ${result.code})",
+                )
+            }
+        }
+
+        FaroLog.lifecycle(logger, project, "symbol upload complete for $identity.")
     }
 }

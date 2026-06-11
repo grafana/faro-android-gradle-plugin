@@ -10,7 +10,7 @@ import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-/** Inputs for a single Android symbols upload. */
+/** Inputs for a single Android symbols upload POST. */
 data class UploadConfig(
     val endpoint: String,
     val appId: String,
@@ -20,18 +20,14 @@ data class UploadConfig(
     val bundleId: String,
     val mapping: File?,
     val nativeSymbols: File?,
+    val nativeAbi: String? = null,
 )
 
 data class UploadResult(val code: Int, val body: String)
 
 /**
- * Builds and sends the multipart upload that mirrors `faro-cli android upload` and the
- * `POST /app/{appId}/symbols/android/{bundleId}` endpoint contract:
- *   - path: bundle id (URL-encoded)
- *   - file parts: mapping (text/plain), native-symbols (application/zip)
- *   - auth header: `Authorization: Bearer {stackId}:{apiKey}` (+ `X-Scope-OrgID` for local dev)
- *
- * Kept free of Gradle types so it is unit-testable with MockWebServer.
+ * Builds and sends multipart uploads that mirror `faro-cli android upload` and the
+ * `POST /app/{appId}/symbols/android/{bundleId}` endpoint contract.
  */
 object SymbolUploader {
     fun targetUrl(endpoint: String, appId: String, bundleId: String): String {
@@ -49,14 +45,18 @@ object SymbolUploader {
         require(config.mapping != null || config.nativeSymbols != null) {
             "Provide at least one of mapping.txt or native-debug-symbols.zip"
         }
+        if (config.nativeSymbols != null) {
+            require(!config.nativeAbi.isNullOrBlank()) { "nativeAbi is required when nativeSymbols is set" }
+        }
 
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
 
         config.mapping?.let {
             multipart.addFormDataPart("mapping", it.name, it.asRequestBody("text/plain".toMediaType()))
         }
-        config.nativeSymbols?.let {
-            multipart.addFormDataPart("native-symbols", it.name, it.asRequestBody("application/zip".toMediaType()))
+        config.nativeSymbols?.let { zip ->
+            multipart.addFormDataPart("abi", config.nativeAbi!!)
+            multipart.addFormDataPart("native-symbols", zip.name, zip.asRequestBody("application/zip".toMediaType()))
         }
 
         val url = targetUrl(config.endpoint, config.appId, config.bundleId)
@@ -73,4 +73,14 @@ object SymbolUploader {
             return UploadResult(response.code, response.body?.string().orEmpty())
         }
     }
+
+    fun uploadMapping(config: UploadConfig, client: OkHttpClient = OkHttpClient()): UploadResult =
+        upload(config.copy(nativeSymbols = null, nativeAbi = null), client)
+
+    fun uploadNativeAbi(
+        config: UploadConfig,
+        abiZip: File,
+        abi: String,
+        client: OkHttpClient = OkHttpClient(),
+    ): UploadResult = upload(config.copy(mapping = null, nativeSymbols = abiZip, nativeAbi = abi), client)
 }

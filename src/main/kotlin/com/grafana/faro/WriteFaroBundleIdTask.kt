@@ -48,6 +48,6 @@ abstract class WriteFaroBundleIdTask : DefaultTask() {
         val file = bundleIdFile.get().asFile
         file.parentFile.mkdirs()
         file.writeText(bundleId)
-        FaroLog.lifecycle(logger, project, "bundle id for ${variantName.get()}: $bundleId")
+        FaroLog.info(logger, project, "bundle id for ${variantName.get()}: $bundleId")
     }
 }

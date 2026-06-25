@@ -7,7 +7,9 @@ stacks are retraced at ingest time.
 On **release** builds only (not debug), it uploads:
 
 - **`mapping.txt`** (R8/ProGuard) — de-obfuscates Java/Kotlin frames.
-- **`native-debug-symbols.zip`** (NDK) — symbolicates native `.so` crash frames.
+- **`native-debug-symbols.zip`** (NDK) — symbolicates native `.so` crash frames. When AGP does
+  not emit that zip (common in React Native / CMake apps), the plugin packs unstripped `.so`
+  files from `intermediates/cxx/RelWithDebInfo/*/obj/{abi}/` and uploads one zip per ABI.
 
 The plugin reads the build identity (`applicationId` / `versionCode` / `versionName`) and the
 artifact output paths straight from the Android Gradle Plugin variant API, and uploads **in-JVM**
@@ -93,8 +95,12 @@ faro {
 ```
 
 The `faroUploadSymbols<Variant>` task runs automatically afterwards and uploads whatever
-artifacts the build produced. Missing artifacts or missing config → the task **warns and skips**
-(it never fails the build), so debug builds and contributors without a key are unaffected.
+artifacts the build produced.
+
+- Missing **config** (endpoint, appId, stackId, apiKey) → the task **warns and skips** (never fails the build), so contributors without credentials are unaffected.
+- Missing **mapping.txt** on a Java-only app → uploads native symbols only (if any).
+- **Release ships native `.so` libraries** (React Native, NDK, CMake) but no unstripped symbols were produced → logs a **red `[Faro]` error** with configuration guidance; the build continues (mapping upload still runs). Does not print “symbol upload complete” for native.
+- **Native libraries built** (CMake `RelWithDebInfo` obj dirs) but none collected or uploaded → same red error; build is not failed.
 
 To enable native symbols, make sure your release build emits them:
 

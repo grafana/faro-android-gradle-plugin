@@ -45,21 +45,21 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
     @get:Input
     abstract val uploadEnabled: Property<Boolean>
 
+    @get:Input
+    abstract val variantName: Property<String>
+
     @get:Internal
     abstract val mappingFile: RegularFileProperty
 
-    @get:Internal
-    abstract val nativeSymbolsFile: RegularFileProperty
-
     init {
         group = "faro"
-        description = "Uploads Android symbols (mapping.txt / native-debug-symbols.zip) to Grafana."
+        description = "Uploads Android symbols (mapping.txt and native .so libraries) to Grafana."
     }
 
     @TaskAction
     fun upload() {
         if (!uploadEnabled.getOrElse(true)) {
-            FaroLog.lifecycle(logger, project, "upload disabled (faro.enabled = false); skipping.")
+            FaroLog.info(logger, project, "upload disabled (faro.enabled = false); skipping.")
             return
         }
 
@@ -75,9 +75,19 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
         }
 
         val mapping = mappingFile.orNull?.asFile?.takeIf { it.exists() }
-        val nativeSymbols = nativeSymbolsFile.orNull?.asFile?.takeIf { it.exists() }
-        if (mapping == null && nativeSymbols == null) {
-            FaroLog.warn(logger, "no mapping.txt or native-debug-symbols.zip found for this build; nothing to upload.")
+        val buildDir = project.layout.buildDirectory.get().asFile
+        val variant = variantName.get()
+        val locateResult = NativeSymbolsLocator.locate(buildDir, variant)
+        val nativeUploadExpected = isNativeUploadExpected(locateResult)
+
+        val collected = if (nativeUploadExpected || locateResult.agpNativeSymbolsZip != null) {
+            NativeSymbolsCollector.collect(locateResult)
+        } else {
+            null
+        }
+
+        if (mapping == null && !nativeUploadExpected && (collected == null || collected.isEmpty)) {
+            FaroLog.warn(logger, "no mapping.txt or native .so libraries found for this build; nothing to upload.")
             return
         }
 
@@ -97,23 +107,40 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
             nativeSymbols = null,
         )
 
+        var mappingUploaded = false
         if (mapping != null) {
-            FaroLog.lifecycle(logger, project, "uploading mapping (${mapping.length()} bytes) for $identity")
+            FaroLog.info(
+                logger,
+                project,
+                "uploading R8 mapping.txt (${mapping.length()} bytes) for $identity",
+            )
             val result = SymbolUploader.uploadMapping(baseConfig.copy(mapping = mapping))
             if (result.code !in 200..299) {
-                throw GradleException("${FaroLog.PREFIX}mapping upload failed (HTTP ${result.code}): ${result.body}")
+                throw GradleException(
+                    "${FaroLog.PREFIX}R8 mapping.txt upload failed (HTTP ${result.code}): ${result.body}",
+                )
             }
-            FaroLog.lifecycle(logger, project, "uploaded mapping (${mapping.length()} bytes, HTTP ${result.code})")
+            FaroLog.success(
+                logger,
+                project,
+                "R8 mapping.txt upload complete for $identity (HTTP ${result.code})",
+            )
+            mappingUploaded = true
         }
 
-        if (nativeSymbols != null) {
+        var nativeAbisUploaded = emptyList<String>()
+        var nativeUploadSkippedReason: String? = null
+
+        if (collected != null && !collected.isEmpty) {
+            logNativeCollection(collected, locateResult)
             val tempDir = File(project.buildDir, "faro-native-abi-zips").apply {
                 deleteRecursively()
                 mkdirs()
             }
-            val abiArtifacts = NativeSymbolsByAbiPacker.pack(nativeSymbols, tempDir)
+            val abiArtifacts = NativeSymbolsByAbiPacker.packCollected(collected.byAbi, tempDir)
+            nativeAbisUploaded = abiArtifacts.map { it.abi }
             for (artifact in abiArtifacts) {
-                FaroLog.lifecycle(
+                FaroLog.info(
                     logger,
                     project,
                     "uploading native-symbols (${artifact.abi}, ${artifact.bytes} bytes)",
@@ -125,14 +152,69 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
                             "(HTTP ${result.code}): ${result.body}",
                     )
                 }
-                FaroLog.lifecycle(
+                FaroLog.info(
                     logger,
                     project,
                     "uploaded native-symbols (${artifact.abi}, ${artifact.bytes} bytes, HTTP ${result.code})",
                 )
             }
+        } else if (locateResult.agpNativeSymbolsZip != null) {
+            nativeUploadSkippedReason = NativeSymbolsDiagnostics.missingSymbolsMessage(locateResult, collected)
+        } else if (nativeUploadExpected) {
+            nativeUploadSkippedReason = NativeSymbolsDiagnostics.missingSymbolsMessage(locateResult, collected)
         }
 
-        FaroLog.lifecycle(logger, project, "symbol upload complete for $identity.")
+        if (!mappingUploaded && nativeAbisUploaded.isEmpty()) {
+            if (nativeUploadSkippedReason != null) {
+                FaroLog.error(logger, project, nativeUploadSkippedReason)
+            }
+            FaroLog.warn(logger, "no symbol artifacts were uploaded for $identity.")
+            return
+        }
+
+        if (nativeUploadSkippedReason != null) {
+            FaroLog.error(logger, project, nativeUploadSkippedReason)
+            FaroLog.info(
+                logger,
+                project,
+                "symbol upload finished for $identity (native symbols not uploaded).",
+            )
+            return
+        }
+
+        if (nativeAbisUploaded.isNotEmpty()) {
+            FaroLog.success(
+                logger,
+                project,
+                "native symbols upload complete for $identity (${nativeAbisUploaded.joinToString()}).",
+            )
+        }
+    }
+
+    private fun isNativeUploadExpected(locateResult: NativeSymbolsLocator.LocateResult): Boolean =
+        locateResult.shipsNativeLibraries ||
+            locateResult.hasCxxNativeLibs ||
+            locateResult.hasReleaseCxxBuild
+
+    private fun logNativeCollection(
+        collected: NativeSymbolsCollector.CollectResult,
+        locateResult: NativeSymbolsLocator.LocateResult,
+    ) {
+        val agpStatus = when {
+            collected.agpZipUsed -> "present"
+            locateResult.agpNativeSymbolsZip != null -> "empty"
+            else -> "absent"
+        }
+        val cxxRoots = collected.cxxObjRootsUsed.joinToString { it.relativeTo(project.projectDir).path }
+        FaroLog.info(
+            logger,
+            project,
+            "collecting native symbols (agp zip=$agpStatus, cxx obj roots=${cxxRoots.ifEmpty { "none" }})",
+        )
+        FaroLog.info(
+            logger,
+            project,
+            "collected native libraries: ${collected.libraryNames.joinToString()}",
+        )
     }
 }

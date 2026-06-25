@@ -62,13 +62,9 @@ class FaroPlugin : Plugin<Project> {
                         applicationId.set(variant.applicationId)
                         versionCode.set(variantVersionCode)
                         versionName.set(variantVersionName)
+                        variantName.set(variant.name)
                         mappingFile.set(
                             project.layout.buildDirectory.file("outputs/mapping/${variant.name}/mapping.txt"),
-                        )
-                        nativeSymbolsFile.set(
-                            project.layout.buildDirectory.file(
-                                "outputs/native-debug-symbols/${variant.name}/native-debug-symbols.zip",
-                            ),
                         )
                     },
                 )

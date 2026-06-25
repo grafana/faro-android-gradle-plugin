@@ -5,16 +5,19 @@ import org.gradle.api.logging.Logger
 import org.gradle.api.logging.configuration.ConsoleOutput
 
 /**
- * Gradle log lines aligned with `@grafana/faro-bundlers-shared` `consoleInfoOrange`:
- * `[Faro] …` in ANSI 256-color orange (214).
+ * Gradle `[Faro]` log lines: orange for progress, bold green for completion (Gradle BUILD SUCCESSFUL style).
  */
 internal object FaroLog {
     const val PREFIX = "[Faro] "
 
+    /** Progress / in-flight messages — aligned with `@grafana/faro-bundlers-shared` orange (214). */
     private const val ORANGE = "\u001B[38;5;214m"
+
+    private const val SUCCESS_GREEN = "\u001B[1;32m"
+    private const val RED = "\u001B[38;5;196m"
     private const val RESET = "\u001B[0m"
 
-    fun lifecycle(logger: Logger, project: Project, message: String) {
+    fun info(logger: Logger, project: Project, message: String) {
         if (useColor(project)) {
             logger.lifecycle("$ORANGE$PREFIX$message$RESET")
         } else {
@@ -22,8 +25,24 @@ internal object FaroLog {
         }
     }
 
+    fun success(logger: Logger, project: Project, message: String) {
+        if (useColor(project)) {
+            logger.lifecycle("$SUCCESS_GREEN$PREFIX$message$RESET")
+        } else {
+            logger.lifecycle("$PREFIX$message")
+        }
+    }
+
     fun warn(logger: Logger, message: String) {
         logger.warn("$PREFIX$message")
+    }
+
+    fun error(logger: Logger, project: Project, message: String) {
+        if (useColor(project)) {
+            logger.error("$RED$PREFIX$message$RESET")
+        } else {
+            logger.error("$PREFIX$message")
+        }
     }
 
     private fun useColor(project: Project): Boolean {

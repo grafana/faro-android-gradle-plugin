@@ -64,7 +64,8 @@ internal object NativeSymbolsCollector {
                     zis.closeEntry()
                     continue
                 }
-                val abi = NativeSymbolsByAbiPacker.abiFromZipPath(name) ?: run {
+                val abi = NativeSymbolsByAbiPacker.abiFromZipPath(name)
+                if (abi == null) {
                     zis.closeEntry()
                     continue
                 }

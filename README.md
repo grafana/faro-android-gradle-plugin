@@ -1,6 +1,6 @@
 # Faro Android Gradle Plugin
 
-`com.grafana.faro` — automatically uploads Android symbolication artifacts to Grafana
+`com.grafana.faro.android-symbols` — automatically uploads Android symbolication artifacts to Grafana
 Frontend/Application Observability after a **release** build, so obfuscated Android crash
 stacks are retraced at ingest time.
 
@@ -60,7 +60,7 @@ npx react-native bundle --platform android --dev false ...
 ```kotlin
 plugins {
     id("com.android.application")
-    id("com.grafana.faro") version "<version>"
+    id("com.grafana.faro.android-symbols") version "<version>"
 }
 ```
 
@@ -69,7 +69,7 @@ Groovy (`app/build.gradle`):
 ```groovy
 plugins {
     id "com.android.application"
-    id "com.grafana.faro" version "<version>"
+    id "com.grafana.faro.android-symbols" version "<version>"
 }
 ```
 
@@ -125,7 +125,7 @@ gradle publishToMavenLocal -Pversion=0.1.0
 ```
 
 Add `mavenLocal()` to the consumer's `settings.gradle(.kts)` `pluginManagement { repositories { } }`,
-then apply `id("com.grafana.faro") version "0.1.0"`.
+then apply `id("com.grafana.faro.android-symbols") version "0.1.0"`.
 
 ## Build & test
 

@@ -31,8 +31,8 @@ gradlePlugin {
     website.set("https://github.com/grafana/faro-android-gradle-plugin")
     vcsUrl.set("https://github.com/grafana/faro-android-gradle-plugin.git")
     plugins {
-        create("faro") {
-            id = "com.grafana.faro"
+        create("faroAndroidSymbols") {
+            id = "com.grafana.faro.android-symbols"
             implementationClass = "com.grafana.faro.FaroPlugin"
             displayName = "Grafana Faro Android symbols"
             description =

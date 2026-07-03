@@ -139,6 +139,12 @@ Releases publish to the [Gradle Plugin Portal](https://plugins.gradle.org) via
 `.github/workflows/publish.yml` on a `v*` tag. Requires repo secrets `GRADLE_PUBLISH_KEY` and
 `GRADLE_PUBLISH_SECRET`.
 
+## Contributing
+
+We welcome contributions! Please see our
+[Contributing Guide](./CONTRIBUTING.md) for details on development workflow,
+testing requirements, and the pull request process.
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).

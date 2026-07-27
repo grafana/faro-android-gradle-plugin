@@ -13,24 +13,37 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Configure a "release" environment with the publish secrets for an approval gate.
+    # Configure a "release" environment for an approval gate before publishing.
     environment: release
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      
+      - name: Get Vault secrets
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@f1614b210386ac420af6807a997ac7f6d96e477a # get-vault-secrets/v1.3.1
+        with:
+          vault_instance: dev
+          repo_secrets: |
+            GRADLE_PUBLISH_KEY=gradle-publish-credentials:GRADLE_PUBLISH_KEY
+            GRADLE_PUBLISH_SECRET=gradle-publish-credentials:GRADLE_PUBLISH_SECRET
+      
       - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.7.0
         with:
           distribution: temurin
           java-version: "17"
+      
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4.4.3
         with:
           gradle-version: "8.10"
           cache-disabled: true
+      
       - name: Resolve version
         id: version
         env:
@@ -41,8 +54,9 @@ jobs:
           else
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           fi
+      
       - name: Publish plugin
         env:
-          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
-          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+          GRADLE_PUBLISH_KEY: ${{ env.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ env.GRADLE_PUBLISH_SECRET }}
         run: gradle publishPlugins --no-daemon --stacktrace -Pversion=${{ steps.version.outputs.version }}

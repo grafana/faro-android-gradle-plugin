@@ -18,12 +18,12 @@ dependencies {
     // AGP variant API — provided by the consumer's Android build, so compileOnly.
     compileOnly("com.android.tools.build:gradle-api:8.5.2")
     // In-JVM multipart uploader (no Node / faro-cli dependency in the consumer build).
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
 
     testImplementation(platform("org.junit:junit-bom:5.10.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation(gradleTestKit())
 }
 

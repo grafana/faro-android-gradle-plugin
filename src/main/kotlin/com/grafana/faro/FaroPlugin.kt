@@ -9,7 +9,7 @@ import org.gradle.api.tasks.TaskProvider
 /**
  * Registers the `faro { }` extension and, for each configured release variant of an
  * `com.android.application` project, wires:
- * - [WriteFaroBundleIdTask] before the React Native JS bundle task (unified Metro bundle id)
+ * - [WriteFaroBundleIdTask] before release assemble/bundle/install (and before the RN JS bundle task when present)
  * - [UploadAndroidSymbolsTask] after `assemble<Variant>` / `bundle<Variant>` / `install<Variant>`
  */
 class FaroPlugin : Plugin<Project> {
@@ -73,6 +73,7 @@ class FaroPlugin : Plugin<Project> {
 
                 listOf("assemble$cap", "bundle$cap", "install$cap").forEach { name ->
                     project.tasks.matching { it.name == name }.configureEach(Action {
+                        dependsOn(writeBundleIdTask)
                         finalizedBy(uploadTask)
                     })
                 }

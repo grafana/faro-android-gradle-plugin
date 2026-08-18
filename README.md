@@ -32,10 +32,13 @@ The plugin only hooks **release** build types (`variant.buildType == "release"`)
 
 For a plain `release` variant (no product flavors), Gradle runs:
 
-1. **`faroWriteBundleIdRelease`** before `createBundleReleaseJsAndAssets`, writing  
+1. **`faroWriteBundleIdRelease`** before `assembleRelease` / `bundleRelease` / `installRelease`
+   (and before `createBundleReleaseJsAndAssets` when React Native is present), writing
    `app/build/faro/bundle-id-release.txt`.
-2. Injects **`FARO_BUNDLE_ID`** into that bundle task’s environment (Gradle → Metro only; not for CI).
-3. **`faroUploadSymbolsRelease`** after `assembleRelease` / `bundleRelease` / `installRelease` (e.g. `yarn android --mode=release`).
+2. When React Native is present, the same task also runs before the JS bundle task so Metro can
+   read the unified id.
+3. **`faroUploadSymbolsRelease`** after `assembleRelease` / `bundleRelease` / `installRelease`
+   (e.g. `yarn android --mode=release`).
 
 If you use **product flavors** with a release build type (e.g. `freeRelease`, `prodRelease`), the same three steps run per flavor variant name — each with its own `applicationId` / version and upload task.
 

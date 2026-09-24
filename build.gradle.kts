@@ -16,7 +16,7 @@ java {
 
 dependencies {
     // AGP variant API — provided by the consumer's Android build, so compileOnly.
-    compileOnly("com.android.tools.build:gradle-api:8.5.2")
+    compileOnly("com.android.tools.build:gradle-api:9.2.1")
     // In-JVM multipart uploader (no Node / faro-cli dependency in the consumer build).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 

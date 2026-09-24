@@ -20,7 +20,7 @@ dependencies {
     // In-JVM multipart uploader (no Node / faro-cli dependency in the consumer build).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    testImplementation(platform("org.junit:junit-bom:5.10.2"))
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")

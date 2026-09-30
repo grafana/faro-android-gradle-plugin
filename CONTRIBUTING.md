@@ -32,7 +32,7 @@ participating, you are expected to uphold this code.
 ### Prerequisites
 
 - JDK 17+
-- Gradle 8.10+ (or use the Gradle version pinned in [CI](.github/workflows/ci.yml))
+- Gradle 9.7+ to build the plugin (the version pinned in [CI](.github/workflows/ci.yml)). Apps that apply the plugin can still use Gradle 8.10+.
 
 ### Initial Setup
 

@@ -24,3 +24,5 @@ jobs:
           gradle-version: "9.8.0"
       - name: Build and test
         run: gradle build --no-daemon --stacktrace
+      - name: Test on minimum supported AGP and Gradle
+        run: gradle functionalTest --no-daemon --stacktrace

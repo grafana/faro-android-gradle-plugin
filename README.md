@@ -54,6 +54,14 @@ Standalone JS bundle (release id only — `@grafana/faro-metro-plugin` runs `far
 npx react-native bundle --platform android --dev false ...
 ```
 
+## Requirements
+
+- Android Gradle Plugin (AGP) 8.5.2+, applied as `com.android.application`
+- Gradle 8.10+
+- JDK 17+ to run the build
+
+CI builds a sample app on AGP 8.5.2 and Gradle 8.10 to check these minimums.
+
 ## Usage
 
 ### 1. Apply the plugin

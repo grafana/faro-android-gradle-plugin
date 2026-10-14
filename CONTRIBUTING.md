@@ -120,6 +120,9 @@ gradle build
 
 # Run tests only
 gradle test
+
+# Build a sample app on the minimum supported AGP and Gradle (needs an Android SDK in ANDROID_HOME)
+gradle functionalTest
 ```
 
 ### Writing Tests

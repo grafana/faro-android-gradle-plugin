@@ -14,13 +14,19 @@ java {
     }
 }
 
+// Minimum AGP and Gradle that apps can use (README > Requirements). Compiling against the
+// minimum AGP stops code from using newer AGP API by accident.
+val minAgpVersion = "8.5.2"
+val minConsumerGradleVersion = "8.10"
+val junitVersion = "6.1.0"
+
 dependencies {
     // AGP variant API — provided by the consumer's Android build, so compileOnly.
-    compileOnly("com.android.tools.build:gradle-api:8.5.2")
+    compileOnly("com.android.tools.build:gradle-api:$minAgpVersion")
     // In-JVM multipart uploader (no Node / faro-cli dependency in the consumer build).
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
 
-    testImplementation(platform("org.junit:junit-bom:6.1.0"))
+    testImplementation(platform("org.junit:junit-bom:$junitVersion"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
@@ -45,4 +51,39 @@ gradlePlugin {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+// The functional test resolves the plugin from this repo, the same way an app resolves it
+// from the Plugin Portal.
+val functionalTestRepo = layout.buildDirectory.dir("functional-test-repo")
+
+publishing {
+    repositories {
+        maven {
+            name = "functionalTest"
+            url = uri(functionalTestRepo)
+        }
+    }
+}
+
+// Not part of `check`: it needs an Android SDK, so `gradle build` stays SDK-free.
+testing {
+    suites {
+        register<JvmTestSuite>("functionalTest") {
+            useJUnitJupiter(junitVersion)
+            dependencies {
+                implementation("com.squareup.okhttp3:mockwebserver:5.5.0")
+                implementation(gradleTestKit())
+            }
+            targets.configureEach {
+                testTask.configure {
+                    dependsOn("publishAllPublicationsToFunctionalTestRepository")
+                    systemProperty("faro.pluginVersion", project.version.toString())
+                    systemProperty("faro.pluginRepo", functionalTestRepo.get().asFile.absolutePath)
+                    systemProperty("faro.minAgpVersion", minAgpVersion)
+                    systemProperty("faro.minGradleVersion", minConsumerGradleVersion)
+                }
+            }
+        }
+    }
 }

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "packageRules": [
+    {
+      "description": "gradle-api is pinned to the minimum supported AGP (see README > Requirements), not the latest. Any bump, minor included, raises that minimum, so change it by hand when the minimum moves.",
+      "matchPackageNames": ["com.android.tools.build:gradle-api"],
+      "enabled": false
+    }
+  ]
+}

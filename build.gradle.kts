@@ -24,7 +24,7 @@ dependencies {
     // AGP variant API — provided by the consumer's Android build, so compileOnly.
     compileOnly("com.android.tools.build:gradle-api:$minAgpVersion")
     // In-JVM multipart uploader (no Node / faro-cli dependency in the consumer build).
-    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
 
     testImplementation(platform("org.junit:junit-bom:$junitVersion"))
     testImplementation("org.junit.jupiter:junit-jupiter")

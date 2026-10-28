@@ -16,7 +16,7 @@ java {
 
 // Minimum AGP and Gradle that apps can use (README > Requirements). Compiling against the
 // minimum AGP stops code from using newer AGP API by accident.
-val minAgpVersion = "8.5.2"
+val minAgpVersion = "9.4.1"
 val minConsumerGradleVersion = "8.10"
 val junitVersion = "6.1.0"
 

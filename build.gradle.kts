@@ -18,7 +18,7 @@ java {
 // minimum AGP stops code from using newer AGP API by accident.
 val minAgpVersion = "8.5.2"
 val minConsumerGradleVersion = "8.10"
-val junitVersion = "6.1.0"
+val junitVersion = "6.1.3"
 
 dependencies {
     // AGP variant API — provided by the consumer's Android build, so compileOnly.

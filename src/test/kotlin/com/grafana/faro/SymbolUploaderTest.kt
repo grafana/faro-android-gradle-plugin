@@ -95,6 +95,47 @@ class SymbolUploaderTest {
         server.shutdown()
         abiZip.delete()
     }
+
+    @Test
+    fun `uploadNativeAbi extracts server warning from 201 JSON response`() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(201)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"status":"warn","message":"Native symbols uploaded, but 1 library was skipped because the decompressed ELF exceeded the per-library size limit: arm64-v8a/libreactnative.so (93 MiB > 64 MiB limit).","skipped_libraries":[{"abi":"arm64-v8a","name":"libreactnative.so","size_bytes":97517568,"limit_bytes":67108864,"reason":"per_library_size_limit"}]}""",
+                ),
+        )
+        server.start()
+
+        val abiZip = Files.createTempFile("arm64-v8a", ".zip").toFile().apply {
+            writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04))
+        }
+
+        val result = SymbolUploader.uploadNativeAbi(
+            UploadConfig(
+                endpoint = server.url("/").toString().trimEnd('/'),
+                appId = "42",
+                stackId = "777",
+                apiKey = "secret-token",
+                bundleId = "com.example.app@12@1.2.3",
+                mapping = null,
+                nativeSymbols = abiZip,
+            ),
+            abiZip,
+            "arm64-v8a",
+        )
+
+        assertEquals(201, result.code)
+        assertEquals(
+            "Native symbols uploaded, but 1 library was skipped because the decompressed ELF exceeded the per-library size limit: arm64-v8a/libreactnative.so (93 MiB > 64 MiB limit).",
+            result.warning,
+        )
+
+        server.shutdown()
+        abiZip.delete()
+    }
 }
 
 class NativeSymbolsByAbiPackerTest {

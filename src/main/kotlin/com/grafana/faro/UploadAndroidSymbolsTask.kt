@@ -120,6 +120,7 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
                     "${FaroLog.PREFIX}R8 mapping.txt upload failed (HTTP ${result.code}): ${result.body}",
                 )
             }
+            result.warning?.let { FaroLog.warn(logger, it) }
             FaroLog.success(
                 logger,
                 project,
@@ -152,6 +153,7 @@ abstract class UploadAndroidSymbolsTask : DefaultTask() {
                             "(HTTP ${result.code}): ${result.body}",
                     )
                 }
+                result.warning?.let { FaroLog.warn(logger, it) }
                 FaroLog.info(
                     logger,
                     project,

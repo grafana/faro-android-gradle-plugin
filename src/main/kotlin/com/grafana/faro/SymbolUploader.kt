@@ -1,5 +1,6 @@
 package com.grafana.faro
 
+import groovy.json.JsonSlurper
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -23,7 +24,11 @@ data class UploadConfig(
     val nativeAbi: String? = null,
 )
 
-data class UploadResult(val code: Int, val body: String)
+data class UploadResult(
+    val code: Int,
+    val body: String,
+    val warning: String? = parseUploadWarning(body),
+)
 
 /**
  * Builds and sends multipart uploads that mirror `faro-cli android upload` and the
@@ -84,3 +89,13 @@ object SymbolUploader {
         client: OkHttpClient = OkHttpClient(),
     ): UploadResult = upload(config.copy(mapping = null, nativeSymbols = abiZip, nativeAbi = abi), client)
 }
+
+internal fun parseUploadWarning(body: String): String? {
+    val trimmed = body.trim()
+    if (!trimmed.startsWith("{")) return null
+    val parsed = runCatching { JsonSlurper().parseText(trimmed) as? Map<*, *> }.getOrNull() ?: return null
+    val status = (parsed["status"] as? String)?.trim()
+    if (status != "warn" && status != "warning") return null
+    return (parsed["message"] as? String)?.trim()?.ifEmpty { null }
+}
+

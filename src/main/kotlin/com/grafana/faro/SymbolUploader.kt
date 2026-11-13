@@ -1,5 +1,6 @@
 package com.grafana.faro
 
+import groovy.json.JsonSlurper
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -92,63 +93,9 @@ object SymbolUploader {
 internal fun parseUploadWarning(body: String): String? {
     val trimmed = body.trim()
     if (!trimmed.startsWith("{")) return null
-    val status = extractJsonStringField(trimmed, UPLOAD_STATUS_REGEX) ?: return null
+    val parsed = runCatching { JsonSlurper().parseText(trimmed) as? Map<*, *> }.getOrNull() ?: return null
+    val status = (parsed["status"] as? String)?.trim()
     if (status != "warn" && status != "warning") return null
-    return extractJsonStringField(trimmed, UPLOAD_MESSAGE_REGEX)
+    return (parsed["message"] as? String)?.trim()?.ifEmpty { null }
 }
-
-private fun extractJsonStringField(json: String, pattern: Regex): String? {
-    val match = pattern.find(json) ?: return null
-    val raw = match.groupValues[1]
-    val unescaped = buildString(raw.length) {
-        var i = 0
-        while (i < raw.length) {
-            val ch = raw[i]
-            if (ch == '\\' && i + 1 < raw.length) {
-                when (val next = raw[i + 1]) {
-                    '"', '\\', '/' -> {
-                        append(next)
-                        i += 2
-                    }
-                    'n' -> {
-                        append('\n')
-                        i += 2
-                    }
-                    'r' -> {
-                        append('\r')
-                        i += 2
-                    }
-                    't' -> {
-                        append('\t')
-                        i += 2
-                    }
-                    'u' -> {
-                        if (i + 5 < raw.length) {
-                            val hex = raw.substring(i + 2, i + 6)
-                            val codePoint = hex.toIntOrNull(16)
-                            if (codePoint != null) {
-                                append(codePoint.toChar())
-                                i += 6
-                                continue
-                            }
-                        }
-                        append(ch)
-                        i++
-                    }
-                    else -> {
-                        append(next)
-                        i += 2
-                    }
-                }
-            } else {
-                append(ch)
-                i++
-            }
-        }
-    }.trim()
-    return unescaped.ifEmpty { null }
-}
-
-private val UPLOAD_STATUS_REGEX = Regex(""""status"\s*:\s*"((?:\\.|[^"\\])*)"""")
-private val UPLOAD_MESSAGE_REGEX = Regex(""""message"\s*:\s*"((?:\\.|[^"\\])*)"""")
 

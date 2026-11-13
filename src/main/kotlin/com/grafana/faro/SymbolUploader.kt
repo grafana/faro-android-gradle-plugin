@@ -23,7 +23,11 @@ data class UploadConfig(
     val nativeAbi: String? = null,
 )
 
-data class UploadResult(val code: Int, val body: String)
+data class UploadResult(
+    val code: Int,
+    val body: String,
+    val warning: String? = parseUploadWarning(body),
+)
 
 /**
  * Builds and sends multipart uploads that mirror `faro-cli android upload` and the
@@ -84,3 +88,67 @@ object SymbolUploader {
         client: OkHttpClient = OkHttpClient(),
     ): UploadResult = upload(config.copy(mapping = null, nativeSymbols = abiZip, nativeAbi = abi), client)
 }
+
+internal fun parseUploadWarning(body: String): String? {
+    val trimmed = body.trim()
+    if (!trimmed.startsWith("{")) return null
+    val status = extractJsonStringField(trimmed, UPLOAD_STATUS_REGEX) ?: return null
+    if (status != "warn" && status != "warning") return null
+    return extractJsonStringField(trimmed, UPLOAD_MESSAGE_REGEX)
+}
+
+private fun extractJsonStringField(json: String, pattern: Regex): String? {
+    val match = pattern.find(json) ?: return null
+    val raw = match.groupValues[1]
+    val unescaped = buildString(raw.length) {
+        var i = 0
+        while (i < raw.length) {
+            val ch = raw[i]
+            if (ch == '\\' && i + 1 < raw.length) {
+                when (val next = raw[i + 1]) {
+                    '"', '\\', '/' -> {
+                        append(next)
+                        i += 2
+                    }
+                    'n' -> {
+                        append('\n')
+                        i += 2
+                    }
+                    'r' -> {
+                        append('\r')
+                        i += 2
+                    }
+                    't' -> {
+                        append('\t')
+                        i += 2
+                    }
+                    'u' -> {
+                        if (i + 5 < raw.length) {
+                            val hex = raw.substring(i + 2, i + 6)
+                            val codePoint = hex.toIntOrNull(16)
+                            if (codePoint != null) {
+                                append(codePoint.toChar())
+                                i += 6
+                                continue
+                            }
+                        }
+                        append(ch)
+                        i++
+                    }
+                    else -> {
+                        append(next)
+                        i += 2
+                    }
+                }
+            } else {
+                append(ch)
+                i++
+            }
+        }
+    }.trim()
+    return unescaped.ifEmpty { null }
+}
+
+private val UPLOAD_STATUS_REGEX = Regex(""""status"\s*:\s*"((?:\\.|[^"\\])*)"""")
+private val UPLOAD_MESSAGE_REGEX = Regex(""""message"\s*:\s*"((?:\\.|[^"\\])*)"""")
+
